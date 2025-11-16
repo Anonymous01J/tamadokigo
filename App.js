@@ -101,7 +101,7 @@ export default function App() {
 
   // Obtener etapa y stat máximo de evolución
   const evolutionStage = getEvolutionStage(pet.daysAlive || 0);
-  const maxStat = getMaxStat(pet.evolutionStage, 100); // 100 es el valor base
+  const maxStat = getMaxStat(evolutionStage.key, 100); // CORREGIDO
 
   const poodleImage =
     pet.lastAction === 'sleep'
