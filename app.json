@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -20,7 +19,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "package": "com.anonymous01j.snackd917564a1a324740abbcddd37e188724"
     },
     "web": {
@@ -28,8 +26,11 @@
     },
     "extra": {
       "eas": {
-        "projectId": "57b465ef-2c1b-4bd7-9c11-47b1b81b00de"
+        "projectId": "9f7b9d33-ac6b-4192-95a3-86b5c7f67f0c"
       }
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

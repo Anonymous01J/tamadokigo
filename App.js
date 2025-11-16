@@ -1,4 +1,4 @@
-// App.js - Corregido para las barras de stats dinámicas
+// App.js - Corregido para build
 import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 // Utils
 import { initAudio, cleanupAudio } from './utils/soundManager';
-import { getEvolutionStage, getMaxStat } from './utils/evolutionSystem'; // Importar getMaxStat
+import { getEvolutionStage, getMaxStat } from './utils/evolutionSystem';
 
 // Hooks
 import usePoodlePet from './hooks/usePoodlePet';
@@ -28,17 +28,16 @@ import EvolutionBadge from './components/EvolutionBadge';
 // Styles
 import { appStyles } from './styles/appStyles';
 
-// ... (código existente de getBackgroundGradient, moodImages, actionImages)
 const getBackgroundGradient = () => {
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 12) {
-    return ['#FFE5B4', '#FFF8DC', '#FFEFD5']; // Mañana
+    return ['#FFE5B4', '#FFF8DC', '#FFEFD5'];
   } else if (hour >= 12 && hour < 18) {
-    return ['#87CEEB', '#ADD8E6', '#E0F6FF']; // Tarde
+    return ['#87CEEB', '#ADD8E6', '#E0F6FF'];
   } else if (hour >= 18 && hour < 21) {
-    return ['#FFB6C1', '#FFA07A', '#FFD700']; // Atardecer
+    return ['#FFB6C1', '#FFA07A', '#FFD700'];
   } else {
-    return ['#191970', '#000033', '#0a0a2e']; // Noche
+    return ['#191970', '#000033', '#0a0a2e'];
   }
 };
 
@@ -101,7 +100,7 @@ export default function App() {
 
   // Obtener etapa y stat máximo de evolución
   const evolutionStage = getEvolutionStage(pet.daysAlive || 0);
-  const maxStat = getMaxStat(evolutionStage.key, 100); // CORREGIDO
+  const maxStat = getMaxStat(evolutionStage.key, 100);
 
   const poodleImage =
     pet.lastAction === 'sleep'
@@ -121,10 +120,19 @@ export default function App() {
   };
 
   const handleGameSelect = (gameId) => {
+    setShowGameSelector(false);
     switch (gameId) {
-      case 'hearts': setShowMiniGame(true); break;
-      case 'memory': setShowMemoryGame(true); break;
-      case 'catch': setShowCatchGame(true); break;
+      case 'hearts':
+        setShowMiniGame(true);
+        break;
+      case 'memory':
+        setShowMemoryGame(true);
+        break;
+      case 'catch':
+        setShowCatchGame(true);
+        break;
+      default:
+        break;
     }
   };
 
@@ -158,10 +166,10 @@ export default function App() {
           </View>
 
           <View style={appStyles.statsContainer}>
-            <StatBar label="Hambre" value={pet.hunger} max={maxStat} />
-            <StatBar label="Energía" value={pet.energy} max={maxStat} />
-            <StatBar label="Felicidad" value={pet.happiness} max={maxStat} />
-            <StatBar label="Limpieza" value={pet.cleanliness} max={maxStat} />
+            <StatBar label="Hambre" value={pet.hunger} max={maxStat} emoji="🍖" />
+            <StatBar label="Energía" value={pet.energy} max={maxStat} emoji="⚡" />
+            <StatBar label="Felicidad" value={pet.happiness} max={maxStat} emoji="💖" />
+            <StatBar label="Limpieza" value={pet.cleanliness} max={maxStat} emoji="✨" />
           </View>
 
           <ActionButtons
@@ -183,7 +191,6 @@ export default function App() {
           />
         </View>
 
-        {/* Modales */}
         <StatsModal
           visible={showStatsModal}
           onClose={() => setShowStatsModal(false)}
