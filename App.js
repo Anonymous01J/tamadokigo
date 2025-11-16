@@ -157,14 +157,6 @@ export default function App() {
             floatTranslate={floatTranslate}
             particles={particles}
           />
-
-          <View style={appStyles.evolutionBadgeContainer}>
-            <EvolutionBadge
-              evolutionStage={evolutionStage}
-              daysAlive={pet.daysAlive || 0}
-            />
-          </View>
-
           <View style={appStyles.statsContainer}>
             <StatBar label="Hambre" value={pet.hunger} max={maxStat} emoji="🍖" />
             <StatBar label="Energía" value={pet.energy} max={maxStat} emoji="⚡" />
