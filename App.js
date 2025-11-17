@@ -1,4 +1,4 @@
-// App.js - Corregido para build
+// App.js - Con música de fondo
 import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 // Utils
-import { initAudio, cleanupAudio } from './utils/soundManager';
+import { initAudio, cleanupAudio, toggleMusic } from './utils/soundManager';
 import { getEvolutionStage, getMaxStat } from './utils/evolutionSystem';
 
 // Hooks
@@ -24,6 +24,7 @@ import MemoryGame from './components/MemoryGame';
 import CatchFoodGame from './components/CatchFoodGame';
 import GameSelector from './components/GameSelector';
 import EvolutionBadge from './components/EvolutionBadge';
+import SettingsModal from './components/SettingsModal';
 
 // Styles
 import { appStyles } from './styles/appStyles';
@@ -65,9 +66,17 @@ export default function App() {
   const [showMemoryGame, setShowMemoryGame] = useState(false);
   const [showCatchGame, setShowCatchGame] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   useEffect(() => {
-    initAudio();
+    const setupAudio = async () => {
+      await initAudio();
+      // Activar música de fondo automáticamente
+      await toggleMusic();
+    };
+    
+    setupAudio();
+    
     return () => {
       cleanupAudio();
     };
@@ -148,6 +157,7 @@ export default function App() {
         <Header
           daysAlive={pet.daysAlive || 0}
           onStatsPress={() => setShowStatsModal(true)}
+          onSettingsPress={() => setShowSettingsModal(true)}
         />
 
         <View style={appStyles.mainContent}>
@@ -187,6 +197,11 @@ export default function App() {
           visible={showStatsModal}
           onClose={() => setShowStatsModal(false)}
           pet={pet}
+        />
+
+        <SettingsModal
+          visible={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
         />
 
         <GameSelector

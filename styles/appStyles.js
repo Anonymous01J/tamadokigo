@@ -72,6 +72,8 @@ export const appStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3,
+    width:60,
+    marginLeft: 8,
   },
   daysAliveEmoji: {
     fontSize: 16,
