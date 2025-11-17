@@ -15,7 +15,7 @@ import { colors } from '../styles/appStyles';
 const WINDOW = Dimensions.get('window');
 const SCREEN_WIDTH = WINDOW.width;
 const SCREEN_HEIGHT = WINDOW.height * 0.95;
-const GAME_WIDTH = SCREEN_WIDTH * 0.9; // 90% del ancho real, estable
+const GAME_WIDTH = SCREEN_WIDTH * 1; // ✅ Cambiar de 0.9 a 1 (100% del ancho)
 const BASKET_WIDTH = 60;
 const FOOD_SIZE = 40;
 
@@ -24,23 +24,31 @@ const BAD_ITEMS = ['💩', '🧨', '☠️'];
 
 export default function CatchFoodGame({ visible, onClose, onWin }) {
   const [basketPosition, setBasketPosition] = useState(
-    GAME_WIDTH / 2 - BASKET_WIDTH / 2
+    (SCREEN_WIDTH * 0.9) / 2 - BASKET_WIDTH / 2
   );
+  const basketPanRef = useRef(basketPosition);
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
 
-      onPanResponderMove: (_, gestureState) => {
-        // Movimiento horizontal
-        const newPos = basketPosition + gestureState.dx;
-
-        setBasketPosition(
-          Math.max(0, Math.min(GAME_WIDTH - BASKET_WIDTH, newPos))
-        );
+      onPanResponderGrant: () => {
+        basketPanRef.current = basketPosition;
       },
 
-      onPanResponderRelease: () => {},
+      onPanResponderMove: (_, gestureState) => {
+        const newPos = basketPanRef.current + gestureState.dx;
+        const clampedPos = Math.max(
+          0,
+          Math.min(GAME_WIDTH - BASKET_WIDTH, newPos)
+        );
+        setBasketPosition(clampedPos);
+      },
+
+      onPanResponderRelease: () => {
+        basketPanRef.current = basketPosition;
+      },
     })
   ).current;
 
@@ -51,14 +59,13 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
   const [gameStarted, setGameStarted] = useState(false);
   const gameIntervalRef = useRef(null);
   const timerRef = useRef(null);
-  const listenersRef = useRef([]); // ✅ Para rastrear todos los listeners
-  const gameEndedRef = useRef(false); // ✅ Prevenir múltiples llamadas a endGame
+  const listenersRef = useRef([]);
+  const gameEndedRef = useRef(false);
+  const createItemFuncRef = useRef(null); // ✅ Nueva ref para la función
 
-  // ✅ Limpiar todos los listeners activos
   const cleanupListeners = useCallback(() => {
     listenersRef.current.forEach((listenerId) => {
       try {
-        // Remover listener si existe
         if (listenerId && listenerId.remove) {
           listenerId.remove();
         }
@@ -71,11 +78,11 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
 
   const endGame = useCallback(
     (won) => {
-      // ✅ Prevenir múltiples llamadas
       if (gameEndedRef.current) return;
       gameEndedRef.current = true;
 
-      // Limpiar intervalos
+      console.log('🏁 Finalizando juego...');
+
       if (gameIntervalRef.current) {
         clearInterval(gameIntervalRef.current);
         gameIntervalRef.current = null;
@@ -85,33 +92,33 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
         timerRef.current = null;
       }
 
-      // ✅ Limpiar listeners
       cleanupListeners();
 
-      // Detener todas las animaciones
-      fallingItems.forEach((item) => {
-        try {
-          item.y.stopAnimation();
-          item.y.removeAllListeners();
-        } catch (error) {
-          console.warn('Error deteniendo animación:', error);
-        }
+      setFallingItems((items) => {
+        items.forEach((item) => {
+          try {
+            item.y.stopAnimation();
+            item.y.removeAllListeners();
+          } catch (error) {
+            console.warn('Error deteniendo animación:', error);
+          }
+        });
+        return [];
       });
 
       setGameStarted(false);
-      setFallingItems([]);
 
-      if (won || score >= 100) {
+      if (won) {
         playSound('gameWin');
         onWin();
       } else {
         playSound('gameLose');
       }
-      gameEndedRef.current = false; // Reset para próximo juego
+      gameEndedRef.current = false;
       onClose();
     },
-    [onClose, onWin, score, fallingItems, cleanupListeners]
-  );
+    [onClose, onWin, cleanupListeners]
+  ); // ✅ Eliminamos score y fallingItems
 
   const createFallingItem = useCallback(() => {
     const isBad = Math.random() < 0.2;
@@ -127,18 +134,21 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
       isBad,
     };
 
-    setFallingItems((prev) => [...prev, newItem]);
+    console.log('🍖 Creando item:', newItem.emoji, 'en x:', newItem.x);
+    setFallingItems((prev) => {
+      console.log('📦 Items actuales:', prev.length);
+      return [...prev, newItem];
+    });
 
     Animated.timing(newItem.y, {
-      toValue: SCREEN_HEIGHT * 0.55, // ahora cae EXACTO al fondo
+      toValue: SCREEN_HEIGHT * 0.55,
       duration: 3000,
       useNativeDriver: true,
     }).start(({ finished }) => {
-      // ✅ Solo si la animación terminó naturalmente
+      console.log('🎯 Animación terminó:', finished, 'Item:', newItem.emoji);
       if (finished) {
         setFallingItems((prev) => prev.filter((i) => i.id !== newItem.id));
 
-        // Perder vida solo si no atrapó comida buena
         if (!newItem.isBad) {
           setLives((prev) => {
             const newLives = prev - 1;
@@ -150,41 +160,60 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
         }
       }
     });
-  }, [endGame]);
+  }, []); // ✅ SIN dependencias
 
   const startGame = useCallback(() => {
-    // Reset estado del juego
     gameEndedRef.current = false;
     setGameStarted(true);
     setScore(0);
     setLives(3);
     setTimeLeft(30);
     setFallingItems([]);
-    setBasketPosition(GAME_WIDTH / 2 - BASKET_WIDTH / 2);
+    const initialPos = GAME_WIDTH / 2 - BASKET_WIDTH / 2;
+    setBasketPosition(initialPos);
+    basketPanRef.current = initialPos;
 
-    // Limpiar listeners anteriores
     cleanupListeners();
 
+    console.log('🎮 Juego iniciado!');
+
     // Timer del juego
-    timerRef.current = setInterval(() => {
+    const timer = setInterval(() => {
+      console.log('⏱️ Timer tick');
       setTimeLeft((prev) => {
+        console.log('⏱️ Tiempo:', prev);
         if (prev <= 1) {
-          endGame(false);
+          console.log('⏰ Tiempo agotado!');
+          clearInterval(timer);
+          if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+          gameEndedRef.current = true;
+          setTimeout(() => {
+            setGameStarted(false);
+            playSound('gameLose');
+            onClose();
+          }, 100);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+    timerRef.current = timer;
 
-    // Crear items cayendo
-    gameIntervalRef.current = setInterval(() => {
-      createFallingItem();
+    // Crear items cayendo usando la ref
+    const gameInterval = setInterval(() => {
+      console.log('⏰ Intervalo ejecutándose...');
+      if (createItemFuncRef.current) {
+        createItemFuncRef.current();
+      }
     }, 800);
-  }, [endGame, createFallingItem, cleanupListeners]);
+    gameIntervalRef.current = gameInterval;
+
+    console.log('✅ Intervalos creados:', { timer, gameInterval });
+  }, [cleanupListeners, onClose]);
 
   const checkCollision = useCallback(
     (item, itemY) => {
-      const basketY = SCREEN_HEIGHT * 0.55 - 80; // 80 = tamaño aproximado de la cesta
+      const basketY = SCREEN_HEIGHT * 0.55 - 80;
       const isYCollision = itemY >= basketY - 20 && itemY <= basketY + 20;
       const isXCollision =
         item.x >= basketPosition - 20 &&
@@ -195,33 +224,67 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
     [basketPosition]
   );
 
-  // ✅ Iniciar juego cuando se abre el modal
   useEffect(() => {
     if (visible && !gameStarted) {
-      startGame();
+      // Pequeño delay para asegurar que el componente está montado
+      const timeout = setTimeout(() => {
+        startGame();
+      }, 100);
+      return () => clearTimeout(timeout);
     }
 
-    // Cleanup al desmontar o cerrar modal
     return () => {
-      if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (gameIntervalRef.current) {
+        console.log('🧹 Limpiando intervalo de items');
+        clearInterval(gameIntervalRef.current);
+      }
+      if (timerRef.current) {
+        console.log('🧹 Limpiando timer');
+        clearInterval(timerRef.current);
+      }
       cleanupListeners();
     };
   }, [visible, gameStarted, startGame, cleanupListeners]);
 
-  // ✅ Sistema de colisión mejorado
+  // ✅ NUEVO: Manejar intervalos directamente con useEffect
   useEffect(() => {
-    // Limpiar listeners anteriores antes de agregar nuevos
+    if (!gameStarted) return;
+
+    console.log('🔄 Iniciando intervalos desde useEffect');
+
+    // Timer
+    const timer = setInterval(() => {
+      console.log('⏱️ Timer tick desde useEffect');
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Game items
+    const gameInterval = setInterval(() => {
+      console.log('⏰ Creando item desde useEffect');
+      createFallingItem();
+    }, 800);
+
+    return () => {
+      console.log('🧹 Cleanup de intervalos useEffect');
+      clearInterval(timer);
+      clearInterval(gameInterval);
+    };
+  }, [gameStarted, createFallingItem]);
+
+  useEffect(() => {
     const currentListeners = [];
 
     fallingItems.forEach((item) => {
       const listenerId = item.y.addListener(({ value }) => {
         if (checkCollision(item, value)) {
-          // Remover este listener específico
           item.y.removeListener(listenerId);
           item.y.stopAnimation();
 
-          // Remover item
           setFallingItems((prev) => prev.filter((i) => i.id !== item.id));
 
           if (item.isBad) {
@@ -243,12 +306,10 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
       currentListeners.push({ id: listenerId, animValue: item.y });
     });
 
-    // Guardar referencia de listeners
     listenersRef.current = currentListeners.map((l) => ({
       remove: () => l.animValue.removeListener(l.id),
     }));
 
-    // Cleanup al actualizar
     return () => {
       currentListeners.forEach((listener) => {
         try {
@@ -260,12 +321,28 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
     };
   }, [fallingItems, checkCollision, endGame]);
 
-  // ✅ Verificar victoria
+  // ✅ Verificar victoria usando useEffect
   useEffect(() => {
     if (score >= 100 && gameStarted && !gameEndedRef.current) {
-      endGame(true);
+      console.log('🎉 Victoria alcanzada!');
+      gameEndedRef.current = true;
+      if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+      cleanupListeners();
+      setGameStarted(false);
+      playSound('gameWin');
+      onWin();
+      onClose();
     }
-  }, [score, gameStarted, endGame]);
+  }, [score, gameStarted, cleanupListeners, onWin, onClose]);
+
+  // ✅ Verificar game over por vidas
+  useEffect(() => {
+    if (lives <= 0 && gameStarted && !gameEndedRef.current) {
+      console.log('💀 Game Over - Sin vidas!');
+      endGame(false);
+    }
+  }, [lives, gameStarted, endGame]);
 
   const moveBasket = (direction) => {
     setBasketPosition((prev) => {
@@ -388,10 +465,10 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryLight,
     borderRadius: 15,
     borderWidth: 3,
-    height: SCREEN_HEIGHT * 0.55, // área más grande // antes era 450 fijo
+    height: SCREEN_HEIGHT * 0.55,
     overflow: 'hidden',
     position: 'relative',
-    width: GAME_WIDTH,
+    width: '100%', // ✅ Cambiar GAME_WIDTH por '100%'
   },
   gameContainer: {
     alignItems: 'center',
