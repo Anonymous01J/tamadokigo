@@ -7,12 +7,15 @@ import {
   Modal,
   Animated,
   Dimensions,
+  PanResponder,
 } from 'react-native';
 import { playSound } from '../utils/soundManager';
 import { colors } from '../styles/appStyles';
 
-const SCREEN_WIDTH = Dimensions.get('window').width * 0.9;
-const GAME_WIDTH = SCREEN_WIDTH - 40;
+const WINDOW = Dimensions.get('window');
+const SCREEN_WIDTH = WINDOW.width;
+const SCREEN_HEIGHT = WINDOW.height * 0.95;
+const GAME_WIDTH = SCREEN_WIDTH * 0.9; // 90% del ancho real, estable
 const BASKET_WIDTH = 60;
 const FOOD_SIZE = 40;
 
@@ -23,6 +26,24 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
   const [basketPosition, setBasketPosition] = useState(
     GAME_WIDTH / 2 - BASKET_WIDTH / 2
   );
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+
+      onPanResponderMove: (_, gestureState) => {
+        // Movimiento horizontal
+        const newPos = basketPosition + gestureState.dx;
+
+        setBasketPosition(
+          Math.max(0, Math.min(GAME_WIDTH - BASKET_WIDTH, newPos))
+        );
+      },
+
+      onPanResponderRelease: () => {},
+    })
+  ).current;
+
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [timeLeft, setTimeLeft] = useState(30);
@@ -83,17 +104,11 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
       if (won || score >= 100) {
         playSound('gameWin');
         onWin();
-        setTimeout(() => {
-          gameEndedRef.current = false; // Reset para próximo juego
-          onClose();
-        }, 1500);
       } else {
         playSound('gameLose');
-        setTimeout(() => {
-          gameEndedRef.current = false; // Reset para próximo juego
-          onClose();
-        }, 1500);
       }
+      gameEndedRef.current = false; // Reset para próximo juego
+      onClose();
     },
     [onClose, onWin, score, fallingItems, cleanupListeners]
   );
@@ -115,7 +130,7 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
     setFallingItems((prev) => [...prev, newItem]);
 
     Animated.timing(newItem.y, {
-      toValue: 450,
+      toValue: SCREEN_HEIGHT * 0.55, // ahora cae EXACTO al fondo
       duration: 3000,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -169,7 +184,7 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
 
   const checkCollision = useCallback(
     (item, itemY) => {
-      const basketY = 400;
+      const basketY = SCREEN_HEIGHT * 0.55 - 80; // 80 = tamaño aproximado de la cesta
       const isYCollision = itemY >= basketY - 20 && itemY <= basketY + 20;
       const isXCollision =
         item.x >= basketPosition - 20 &&
@@ -192,7 +207,7 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
       if (timerRef.current) clearInterval(timerRef.current);
       cleanupListeners();
     };
-  }, [visible]); // ✅ SOLO 'visible' como dependencia
+  }, [visible, gameStarted, startGame, cleanupListeners]);
 
   // ✅ Sistema de colisión mejorado
   useEffect(() => {
@@ -266,8 +281,7 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
-    >
+      onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.gameContainer}>
           <View style={styles.header}>
@@ -289,13 +303,14 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
                     left: item.x,
                     transform: [{ translateY: item.y }],
                   },
-                ]}
-              >
+                ]}>
                 {item.emoji}
               </Animated.Text>
             ))}
 
-            <View style={[styles.basket, { left: basketPosition }]}>
+            <View
+              {...panResponder.panHandlers}
+              style={[styles.basket, { left: basketPosition }]}>
               <Text style={styles.basketEmoji}>🧺</Text>
             </View>
           </View>
@@ -303,14 +318,12 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
           <View style={styles.controls}>
             <TouchableOpacity
               style={styles.controlButton}
-              onPress={() => moveBasket(-1)}
-            >
+              onPress={() => moveBasket(-1)}>
               <Text style={styles.controlText}>⬅️</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.controlButton}
-              onPress={() => moveBasket(1)}
-            >
+              onPress={() => moveBasket(1)}>
               <Text style={styles.controlText}>➡️</Text>
             </TouchableOpacity>
           </View>
@@ -327,7 +340,7 @@ export default function CatchFoodGame({ visible, onClose, onWin }) {
 const styles = StyleSheet.create({
   basket: {
     alignItems: 'center',
-    bottom: 20,
+    bottom: 10,
     height: BASKET_WIDTH,
     justifyContent: 'center',
     position: 'absolute',
@@ -375,7 +388,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryLight,
     borderRadius: 15,
     borderWidth: 3,
-    height: 450,
+    height: SCREEN_HEIGHT * 0.55, // área más grande // antes era 450 fijo
     overflow: 'hidden',
     position: 'relative',
     width: GAME_WIDTH,
@@ -384,9 +397,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.white,
     borderRadius: 20,
-    height: '75%',
     padding: 20,
-    width: SCREEN_WIDTH,
+    width: SCREEN_WIDTH * 1,
+    maxHeight: SCREEN_HEIGHT * 0.9,
+    alignSelf: 'center',
   },
   header: {
     alignItems: 'center',

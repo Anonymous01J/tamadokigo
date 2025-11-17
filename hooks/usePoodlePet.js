@@ -280,7 +280,7 @@ export default function usePoodlePet(showToast) {
       showToast('¿Más baño? Un poco más y le echas cloro.', 'error');
       return false;
     }
-    playSound('pet');
+    playSound('bath');
     showActionImage('bath');
     updatePet((p) => ({
       cleanliness: getMaxStat(p.evolutionStage, 100),

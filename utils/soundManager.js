@@ -7,25 +7,45 @@ const isWeb = Platform.OS === 'web';
 
 let soundEnabled = true;
 let musicEnabled = false;
+let musicInterval = null;
 
 const sounds = {};
-const backgroundMusic = { sound: null };
+const backgroundMusic = {
+  sound: null,
+  currentFile: null,
+};
+
+const getBackgroundMusicFile = () => {
+  const hour = new Date().getHours();
+
+  if (hour >= 5 && hour < 12) {
+    return require('../assets/music/morning.mp3'); // Mañana
+  } else if (hour >= 12 && hour < 18) {
+    return require('../assets/music/day.mp3'); // Tarde
+  } else if (hour >= 18 && hour < 21) {
+    return require('../assets/music/sunset.mp3'); // Atardecer
+  } else {
+    return require('../assets/music/night.mp3'); // Noche
+  }
+};
 
 const soundFiles = {
   eat: require('../assets/sounds/eat.mp3'),
   play: require('../assets/sounds/play.mp3'),
   sleep: require('../assets/sounds/sleep.mp3'),
   pet: require('../assets/sounds/pet.mp3'),
+  bath: require('../assets/sounds/bath.mp3'),
   achievement: require('../assets/sounds/achievement.mp3'),
   levelUp: require('../assets/sounds/levelup.mp3'),
   gameWin: require('../assets/sounds/win.mp3'),
   gameLose: require('../assets/sounds/lose.mp3'),
-  bgMusic: require('../assets/music/night.mp3'), // ejemplo
 };
 
 export const initAudio = async () => {
   if (isWeb || !Audio || !Audio.Sound) {
-    console.warn('🎧 Audio no disponible en Snack Web, se usará fallback silencioso.');
+    console.warn(
+      '🎧 Audio no disponible en Snack Web, se usará fallback silencioso.'
+    );
     return;
   }
   try {
@@ -93,13 +113,15 @@ export const playBackgroundMusic = async () => {
   if (backgroundMusic.sound) return;
 
   try {
-    const { sound } = await Audio.Sound.createAsync(soundFiles.bgMusic, {
+    const musicFile = getBackgroundMusicFile();
+    const { sound } = await Audio.Sound.createAsync(musicFile, {
       isLooping: true,
       volume: 0.5,
     });
     backgroundMusic.sound = sound;
+    backgroundMusic.currentFile = musicFile;
     await sound.playAsync();
-    console.log('🎵 Música de fondo iniciada.');
+    console.log('🎵 Música de fondo iniciada según franja horaria.');
   } catch (error) {
     console.error('Error al iniciar música de fondo:', error);
   }
@@ -111,6 +133,7 @@ export const stopBackgroundMusic = async () => {
     await backgroundMusic.sound.stopAsync();
     await backgroundMusic.sound.unloadAsync();
     backgroundMusic.sound = null;
+    backgroundMusic.currentFile = null;
     console.log('🎵 Música de fondo detenida.');
   } catch (error) {
     console.error('Error al detener música de fondo:', error);
@@ -121,8 +144,62 @@ export const toggleMusic = async () => {
   musicEnabled = !musicEnabled;
   if (musicEnabled) {
     await playBackgroundMusic();
+    startMusicWatcher();
   } else {
     await stopBackgroundMusic();
+    stopMusicWatcher();
   }
   return musicEnabled;
+};
+
+// --- Watcher para cambios en vivo ---
+export const startMusicWatcher = () => {
+  if (musicInterval) return; // evitar duplicados
+  musicInterval = setInterval(async () => {
+    if (!musicEnabled) return;
+
+    const newFile = getBackgroundMusicFile();
+    const currentFile = backgroundMusic.currentFile;
+
+    if (newFile !== currentFile) {
+      console.log('⏰ Cambio de franja detectado, actualizando música...');
+      // Fade out
+      try {
+        await backgroundMusic.sound.setVolumeAsync(0.0);
+        await stopBackgroundMusic();
+      } catch (error) {
+        console.error('Error en fade out:', error);
+      }
+      // Fade in nueva pista
+      try {
+        const { sound } = await Audio.Sound.createAsync(newFile, {
+          isLooping: true,
+          volume: 0.0,
+        });
+        backgroundMusic.sound = sound;
+        backgroundMusic.currentFile = newFile;
+        await sound.playAsync();
+        // subir volumen progresivamente
+        let vol = 0.0;
+        const fade = setInterval(async () => {
+          vol += 0.1;
+          if (vol >= 0.5) {
+            vol = 0.5;
+            clearInterval(fade);
+          }
+          await sound.setVolumeAsync(vol);
+        }, 300);
+        console.log('🎵 Música de fondo cambiada con fade.');
+      } catch (error) {
+        console.error('Error al iniciar nueva música:', error);
+      }
+    }
+  }, 60 * 1000); // cada minuto
+};
+
+export const stopMusicWatcher = () => {
+  if (musicInterval) {
+    clearInterval(musicInterval);
+    musicInterval = null;
+  }
 };
