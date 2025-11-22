@@ -9,11 +9,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { colors, modalStyles } from '../styles/appStyles';
-import { toggleMusic } from '../utils/soundManager';
+import { toggleMusic, toggleSound, isMusicEnabled, isSoundEnabled } from '../utils/soundManager';
+import { cancelAllScheduledNotifications, scheduleStatNotifications, scheduleDailyReminder } from '../utils/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function SettingsModal({ visible, onClose }) {
+export default function SettingsModal({ visible, onClose, pet }) {
   const [musicEnabled, setMusicEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // Cargar preferencias al abrir el modal
@@ -25,12 +27,11 @@ export default function SettingsModal({ visible, onClose }) {
 
   const loadSettings = async () => {
     try {
-      const musicPref = await AsyncStorage.getItem('musicEnabled');
-      const notifPref = await AsyncStorage.getItem('notificationsEnabled');
+      // Obtener estado real desde soundManager
+      setMusicEnabled(isMusicEnabled());
+      setSoundEnabled(isSoundEnabled());
       
-      if (musicPref !== null) {
-        setMusicEnabled(musicPref === 'true');
-      }
+      const notifPref = await AsyncStorage.getItem('notificationsEnabled');
       if (notifPref !== null) {
         setNotificationsEnabled(notifPref === 'true');
       }
@@ -40,20 +41,37 @@ export default function SettingsModal({ visible, onClose }) {
   };
 
   const handleMusicToggle = async (value) => {
-    setMusicEnabled(value);
-    await toggleMusic();
-    try {
-      await AsyncStorage.setItem('musicEnabled', value.toString());
-    } catch (error) {
-      console.error('Error guardando preferencia de música:', error);
-    }
+    const newValue = await toggleMusic();
+    setMusicEnabled(newValue);
+  };
+
+  const handleSoundToggle = async (value) => {
+    const newValue = await toggleSound();
+    setSoundEnabled(newValue);
   };
 
   const handleNotificationsToggle = async (value) => {
     setNotificationsEnabled(value);
     try {
       await AsyncStorage.setItem('notificationsEnabled', value.toString());
-      // Aquí puedes agregar lógica adicional para activar/desactivar notificaciones
+      
+      if (value) {
+        // Activar notificaciones: programar recordatorios
+        if (pet) {
+          await scheduleStatNotifications({
+            hunger: pet.hunger,
+            energy: pet.energy,
+            happiness: pet.happiness,
+            cleanliness: pet.cleanliness,
+          });
+        }
+        await scheduleDailyReminder();
+        console.log('✅ Notificaciones activadas');
+      } else {
+        // Desactivar notificaciones: cancelar todas
+        await cancelAllScheduledNotifications();
+        console.log('🔕 Notificaciones desactivadas');
+      }
     } catch (error) {
       console.error('Error guardando preferencia de notificaciones:', error);
     }
@@ -82,6 +100,21 @@ export default function SettingsModal({ visible, onClose }) {
               
               <View style={styles.settingRow}>
                 <View style={styles.settingInfo}>
+                  <Text style={styles.settingLabel}>Efectos de sonido</Text>
+                  <Text style={styles.settingDescription}>
+                    Reproduce sonidos al interactuar (comer, jugar, etc.)
+                  </Text>
+                </View>
+                <Switch
+                  value={soundEnabled}
+                  onValueChange={handleSoundToggle}
+                  trackColor={{ false: colors.lightGrey, true: colors.primaryLight }}
+                  thumbColor={soundEnabled ? colors.primary : colors.textPrimary}
+                />
+              </View>
+
+              <View style={[styles.settingRow, { marginTop: 12 }]}>
+                <View style={styles.settingInfo}>
                   <Text style={styles.settingLabel}>Música de fondo</Text>
                   <Text style={styles.settingDescription}>
                     Reproduce música ambiental según la hora del día
@@ -104,7 +137,7 @@ export default function SettingsModal({ visible, onClose }) {
                 <View style={styles.settingInfo}>
                   <Text style={styles.settingLabel}>Notificaciones push</Text>
                   <Text style={styles.settingDescription}>
-                    Recibe alertas cuando tu Poodle necesite atención
+                    Recibe alertas cuando tu Poodle necesite atención (incluso con la app cerrada)
                   </Text>
                 </View>
                 <Switch
@@ -114,6 +147,17 @@ export default function SettingsModal({ visible, onClose }) {
                   thumbColor={notificationsEnabled ? colors.primary : colors.textPrimary}
                 />
               </View>
+
+              {notificationsEnabled && (
+                <View style={styles.notificationInfo}>
+                  <Text style={styles.notificationInfoTitle}>📱 Tipos de notificaciones:</Text>
+                  <Text style={styles.notificationInfoText}>• Recordatorios de hambre (cada 2h)</Text>
+                  <Text style={styles.notificationInfoText}>• Recordatorios de energía (cada 3h)</Text>
+                  <Text style={styles.notificationInfoText}>• Recordatorios de felicidad (cada 4h)</Text>
+                  <Text style={styles.notificationInfoText}>• Recordatorios de limpieza (cada 6h)</Text>
+                  <Text style={styles.notificationInfoText}>• Recordatorio diario (8 PM)</Text>
+                </View>
+              )}
             </View>
 
             {/* Información */}
@@ -185,6 +229,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.primaryDark,
     lineHeight: 16,
+  },
+  notificationInfo: {
+    backgroundColor: colors.detailedStatsBackground,
+    borderRadius: 10,
+    marginTop: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.primaryLight,
+  },
+  notificationInfoTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: colors.primaryDark,
+    marginBottom: 8,
+  },
+  notificationInfoText: {
+    fontSize: 12,
+    color: colors.textPrimary,
+    marginBottom: 4,
   },
   infoSection: {
     backgroundColor: colors.detailedStatsBackground,

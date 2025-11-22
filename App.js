@@ -1,4 +1,4 @@
-// App.js - Con música de fondo
+// App.js - Con notificaciones programadas
 import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -6,8 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 // Utils
-import { initAudio, cleanupAudio, toggleMusic } from './utils/soundManager';
+import { initAudio, cleanupAudio } from './utils/soundManager';
 import { getEvolutionStage, getMaxStat } from './utils/evolutionSystem';
+import { addNotificationResponseListener } from './utils/notifications';
 
 // Hooks
 import usePoodlePet from './hooks/usePoodlePet';
@@ -23,7 +24,6 @@ import MiniGame from './components/MiniGame';
 import MemoryGame from './components/MemoryGame';
 import CatchFoodGame from './components/CatchFoodGame';
 import GameSelector from './components/GameSelector';
-import EvolutionBadge from './components/EvolutionBadge';
 import SettingsModal from './components/SettingsModal';
 
 // Styles
@@ -71,14 +71,26 @@ export default function App() {
   useEffect(() => {
     const setupAudio = async () => {
       await initAudio();
-      // Activar música de fondo automáticamente
-      await toggleMusic();
     };
     
     setupAudio();
     
+    // Listener para cuando el usuario toca una notificación
+    const subscription = addNotificationResponseListener((response) => {
+      const notificationType = response.notification.request.content.data?.type;
+      
+      console.log('📱 Usuario tocó notificación:', notificationType);
+      
+      // Aquí puedes abrir modales específicos según el tipo de notificación
+      // Por ejemplo, si tocó notificación de hambre, podrías mostrar un toast
+      if (notificationType === 'hunger') {
+        showToast('🍖 ¡Alimenta a Doki!', 'info');
+      }
+    });
+    
     return () => {
       cleanupAudio();
+      subscription.remove();
     };
   }, []);
 
@@ -202,6 +214,7 @@ export default function App() {
         <SettingsModal
           visible={showSettingsModal}
           onClose={() => setShowSettingsModal(false)}
+          pet={pet}
         />
 
         <GameSelector

@@ -1,9 +1,12 @@
-// hooks/usePoodlePet.js - Versión con sonidos y reset corregidos
+// hooks/usePoodlePet.js - Con notificaciones programadas
 import { useState, useEffect, useRef } from 'react';
 import { loadPetState, savePetState } from '../utils/storage';
 import {
   sendPoodleNotification,
   initNotifications,
+  scheduleStatNotifications,
+  scheduleDailyReminder,
+  cancelAllScheduledNotifications,
 } from '../utils/notifications';
 import { playSound } from '../utils/soundManager';
 import {
@@ -62,11 +65,25 @@ export default function usePoodlePet(showToast) {
       }
     };
     fetchState();
-    initNotifications();
+    
+    // Inicializar notificaciones
+    initNotifications().then((granted) => {
+      if (granted) {
+        scheduleDailyReminder(); // Programar recordatorio diario
+      }
+    });
   }, []);
 
   useEffect(() => {
     savePetState(pet);
+    
+    // Actualizar notificaciones programadas cuando cambien los stats
+    scheduleStatNotifications({
+      hunger: pet.hunger,
+      energy: pet.energy,
+      happiness: pet.happiness,
+      cleanliness: pet.cleanliness,
+    });
   }, [pet]);
 
   const getMood = (state) => {
@@ -87,16 +104,19 @@ export default function usePoodlePet(showToast) {
       newAchievements.push('week_survivor');
       showToast('🏆 Logro: ¡Sobrevivió 7 días!', 'success');
       playSound('achievement');
+      sendPoodleNotification('🏆 Logro desbloqueado', '¡Doki sobrevivió 7 días!');
     }
     if (newPet.stats.timesFed >= 50 && !newPet.achievements.includes('master_chef')) {
       newAchievements.push('master_chef');
       showToast('🏆 Logro: ¡Chef Maestro!', 'success');
       playSound('achievement');
+      sendPoodleNotification('🏆 Logro desbloqueado', '¡Chef Maestro alcanzado!');
     }
     if (newPet.stats.timesPlayed >= 30 && !newPet.achievements.includes('playmate')) {
       newAchievements.push('playmate');
       showToast('🏆 Logro: ¡Compañero de juegos!', 'success');
       playSound('achievement');
+      sendPoodleNotification('🏆 Logro desbloqueado', '¡Compañero de juegos!');
     }
     const maxStat = getMaxStat(newPet.evolutionStage, 100);
     const allStatsMax = newPet.hunger === maxStat && newPet.energy === maxStat && newPet.happiness === maxStat && newPet.cleanliness === maxStat;
@@ -104,6 +124,7 @@ export default function usePoodlePet(showToast) {
       newAchievements.push('perfect_care');
       showToast('🏆 Logro: ¡Cuidado Perfecto!', 'success');
       playSound('achievement');
+      sendPoodleNotification('🏆 Logro desbloqueado', '¡Cuidado Perfecto!');
     }
     return newAchievements;
   };
@@ -133,7 +154,9 @@ export default function usePoodlePet(showToast) {
           const bonus = getEvolutionBonus(newStageData.key);
 
           playSound('levelUp');
-          showToast(getEvolutionMessage(newStageData.key), 'success');
+          const evolutionMsg = getEvolutionMessage(newStageData.key);
+          showToast(evolutionMsg, 'success');
+          sendPoodleNotification('🌟 ¡Evolución!', evolutionMsg);
 
           newState.evolutionStage = newStageData.key;
           const maxStat = getMaxStat(newStageData.key, 100);
@@ -150,6 +173,7 @@ export default function usePoodlePet(showToast) {
         if (isDead && prev.hunger > 0) {
           showToast('💀 Doki ha muerto... RIP', 'error');
           sendPoodleNotification('😢 Doki murió', 'Cuida mejor a tu próxima mascota');
+          cancelAllScheduledNotifications(); // Limpiar notificaciones del Poodle anterior
           return {
             ...defaultState,
             totalDaysAlive: prev.totalDaysAlive + prev.daysAlive,
@@ -169,6 +193,9 @@ export default function usePoodlePet(showToast) {
     return () => clearInterval(interval);
   }, [showToast]);
 
+  // Este useEffect ya no es necesario, las notificaciones se programan automáticamente
+  // pero lo dejo comentado por si quieres mantener notificaciones inmediatas adicionales
+  /*
   useEffect(() => {
     const notificationInterval = setInterval(() => {
         const now = Date.now();
@@ -198,6 +225,7 @@ export default function usePoodlePet(showToast) {
 
     return () => clearInterval(notificationInterval);
   }, [pet.hunger, pet.energy, pet.cleanliness, pet.happiness, pet.lastAction, pet.lastNotificationTime]);
+  */
 
   const showActionImage = (imageKey) => {
     if (actionTimeoutRef.current) clearTimeout(actionTimeoutRef.current);
@@ -387,6 +415,7 @@ export default function usePoodlePet(showToast) {
     if (sleepIntervalRef.current) {
       clearInterval(sleepIntervalRef.current);
     }
+    cancelAllScheduledNotifications(); // Limpiar notificaciones al resetear
     setPet({
       ...defaultState,
       birthDate: Date.now(),

@@ -55,6 +55,23 @@ export const initAudio = async () => {
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
     });
+    
+    // Cargar preferencias guardadas
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const soundPref = await AsyncStorage.getItem('soundEnabled');
+    const musicPref = await AsyncStorage.getItem('musicEnabled');
+    
+    if (soundPref !== null) {
+      soundEnabled = soundPref === 'true';
+    }
+    if (musicPref !== null) {
+      musicEnabled = musicPref === 'true';
+      if (musicEnabled) {
+        await playBackgroundMusic();
+        startMusicWatcher();
+      }
+    }
+    
     console.log('🎧 Modo de audio configurado.');
   } catch (error) {
     console.error('Error inicializando audio:', error);
@@ -89,11 +106,16 @@ export const playSound = async (soundName) => {
   }
 };
 
-export const toggleSound = () => {
+export const toggleSound = async () => {
   soundEnabled = !soundEnabled;
   console.log(`🔊 Sonidos: ${soundEnabled ? 'Activados' : 'Desactivados'}`);
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  await AsyncStorage.setItem('soundEnabled', soundEnabled.toString());
   return soundEnabled;
 };
+
+export const isSoundEnabled = () => soundEnabled;
+export const isMusicEnabled = () => musicEnabled;
 
 export const cleanupAudio = async () => {
   if (isWeb) return;
@@ -149,6 +171,10 @@ export const toggleMusic = async () => {
     await stopBackgroundMusic();
     stopMusicWatcher();
   }
+  
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  await AsyncStorage.setItem('musicEnabled', musicEnabled.toString());
+  
   return musicEnabled;
 };
 
